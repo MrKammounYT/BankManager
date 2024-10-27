@@ -2,81 +2,119 @@ package me.kammoun.core.Pages;
 
 import me.kammoun.core.DataBase.MySQLManager;
 import me.kammoun.core.JComponentsPlus.CustomInputField;
+import me.kammoun.core.utils.User;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.text.NumberFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class DashBoardPageAdmin extends JFrame {
 
-    public HashMap<Integer, Boolean> editing = new HashMap<>();
-
-    String[] columnNames = {"ID","Name", "Role", "Create Date"};
-    Object[][] data = {
-            {"David Wagner", "24 Oct, 2015", "Admin", ""},
-            {"Ina Hogan", "24 Oct, 2015", "Admin", ""},
-            {"Devin Harmon", "18 Dec, 2015", "Employee", ""},
-            {"Lena Page", "8 Oct, 2016", "User", ""},
-            {"Eula Horton", "15 Jun, 2017", "User", ""},
-            {"Victoria Perez", "12 Jan, 2019", "User", ""},
-            {"Cora Medina", "21 July, 2020", "User", ""}
-    };
-    JTable table;
-    private DashBoardPageAdmin instance;
+    private final String[] columnNames = {"ID", "Name", "Role", "CreationDate", "Balance"};
+    private Object[][] data;
+    private JTable table;
     private final MySQLManager mySQLManager;
+
     public DashBoardPageAdmin(MySQLManager mySQLManager) {
-        instance = this;
         this.mySQLManager = mySQLManager;
-        if(mySQLManager.isConnected()){
-            data = mySQLManager.getUserTable().getAccountList();
-        }
         setTitle("Users Dashboard");
         setSize(1000, 700);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
-        table = new JTable(data, columnNames);
-        JPanel headerPanel = new JPanel();
-        CustomInputField searchField = new CustomInputField("Search", null);
-        searchField.setPreferredSize(new Dimension(200, 30));
-        searchField.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        addSearchFieldListener(searchField);
-        JButton addUserButton = new JButton("Add User +");
-        addUserButton.setBackground(new Color(233, 66, 66));
-        addUserButton.setForeground(Color.WHITE);
-        addUserButton.setFont(new Font("SansSerif", Font.BOLD, 14));
-        addUserButton.setPreferredSize(new Dimension(120, 40));
-        addUserButton.addActionListener(new ActionListener() {
+        setupData();
 
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if(!mySQLManager.isConnected()){
-                    JOptionPane.showMessageDialog(table, "You cant create an account at the moment server is down !");
-                    return;
-                }
-                new AddUserPage(mySQLManager.getUserTable(),instance).setVisible(true);
-            }
-        });
+        initializeUI();
+    }
 
-        JPanel sortPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        JLabel sortLabel = new JLabel("Sort by:");
-        sortLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        JComboBox<String> sortComboBox = new JComboBox<>(new String[]{"Name", "Date"});
-        sortComboBox.setPreferredSize(new Dimension(100, 30));
-        sortComboBox.addActionListener(sortComboBoxListener(sortComboBox));
-        sortPanel.add(sortLabel);
-        sortPanel.add(sortComboBox);
+    private void initializeUI() {
+        table = new JTable(new DefaultTableModel(data, columnNames));
+        styleTable();
+
+        JPanel headerPanel = createHeaderPanel();
+        JScrollPane tableScrollPane = new JScrollPane(table);
+
+        add(headerPanel, BorderLayout.NORTH);
+        add(tableScrollPane, BorderLayout.CENTER);
+    }
+    private JPanel createHeaderPanel() {
+        JPanel headerPanel = new JPanel(new BorderLayout());
+
+        CustomInputField searchField = createSearchField();
+        JButton addUserButton = createAddUserButton();
+        JPanel sortPanel = createSortPanel();
 
         headerPanel.add(searchField, BorderLayout.WEST);
         headerPanel.add(addUserButton, BorderLayout.CENTER);
         headerPanel.add(sortPanel, BorderLayout.EAST);
 
+        return headerPanel;
+    }
+    private CustomInputField createSearchField() {
+        CustomInputField searchField = new CustomInputField("Search", null);
+        searchField.setPreferredSize(new Dimension(200, 30));
+        searchField.setFont(new Font("SansSerif", Font.PLAIN, 14));
+
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                filterTable(searchField.getText());
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                filterTable(searchField.getText());
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                filterTable(searchField.getText());
+            }
+        });
+
+        return searchField;
+    }
+    private JButton createAddUserButton() {
+        JButton addUserButton = new JButton("Add User +");
+        addUserButton.setBackground(new Color(233, 66, 66));
+        addUserButton.setForeground(Color.WHITE);
+        addUserButton.setFont(new Font("SansSerif", Font.BOLD, 14));
+        addUserButton.setPreferredSize(new Dimension(120, 40));
+
+        addUserButton.addActionListener(e -> {
+            if (!mySQLManager.isConnected()) {
+                JOptionPane.showMessageDialog(table, "You can't create an account right now. The server is down!");
+                return;
+            }
+            new AddUserPage(mySQLManager.getUserTable(), this).setVisible(true);
+        });
+
+        return addUserButton;
+    }
+    private JPanel createSortPanel() {
+        JPanel sortPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+
+        JLabel sortLabel = new JLabel("Sort by:");
+        sortLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+
+        JComboBox<String> sortComboBox = new JComboBox<>(new String[]{"Name", "Date","Balance"});
+        sortComboBox.setPreferredSize(new Dimension(100, 30));
+        sortComboBox.addActionListener(sortComboBoxListener(sortComboBox));
+
+        sortPanel.add(sortLabel);
+        sortPanel.add(sortComboBox);
+
+        return sortPanel;
+    }
+    private void styleTable() {
         table.setRowHeight(50);
         table.setFont(new Font("SansSerif", Font.PLAIN, 14));
         table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 14));
@@ -84,77 +122,86 @@ public class DashBoardPageAdmin extends JFrame {
         table.getTableHeader().setPreferredSize(new Dimension(100, 40));
         table.setGridColor(Color.LIGHT_GRAY);
         table.setShowGrid(false);
-
-        JScrollPane tableScrollPane = new JScrollPane(table);
-        add(headerPanel, BorderLayout.NORTH);
-        add(tableScrollPane, BorderLayout.CENTER);
     }
-
-    private DefaultTableModel sortDataByDate() {
-        SimpleDateFormat dateFormat = new SimpleDateFormat("dd MMM, yyyy");
-        Arrays.sort(data, (a, b) -> {
-            try {
-                Date dateA = dateFormat.parse(String.valueOf(a[4]));
-                Date dateB = dateFormat.parse(String.valueOf(b[4]));
-                return dateA.compareTo(dateB);
-
-            } catch (ParseException e) {
-                e.printStackTrace();
-            }
-            return 0;
-        });
-        return new DefaultTableModel(data, columnNames);
-    }
-
-
-    private DefaultTableModel sortDataByName() {
-        Arrays.sort(data, Comparator.comparing(a -> String.valueOf(a[1])));
-        return new DefaultTableModel(data, columnNames);
-    }
-
     private ActionListener sortComboBoxListener(JComboBox<String> sortComboBox) {
         return e -> {
             String selectedItem = (String) sortComboBox.getSelectedItem();
-            if (selectedItem.equals("Name")) {
+            if ("Name".equals(selectedItem)) {
                 table.setModel(sortDataByName());
-            } else if (selectedItem.equals("Date")) {
+            } else if ("Date".equals(selectedItem)) {
                 table.setModel(sortDataByDate());
+            }else if("Balance".equals(selectedItem)) {
+                table.setModel(sortDataByBalance());
             }
         };
     }
+    private DefaultTableModel sortDataByName() {
+        List<Object[]> sortedData = Arrays.stream(data)
+                .sorted(Comparator.comparing(a -> String.valueOf(a[1])))
+                .collect(Collectors.toList());
 
-    private void addSearchFieldListener(CustomInputField customInputField) {
-        if(customInputField.getText().isEmpty())return;
-        customInputField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                filterTable(customInputField.getText());
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                filterTable(customInputField.getText());
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                filterTable(customInputField.getText());
-            }
-        });
+        return new DefaultTableModel(sortedData.toArray(new Object[0][]), columnNames);
     }
+    private DefaultTableModel sortDataByDate() {
+        SimpleDateFormat dateFormat = new SimpleDateFormat("dd MMM, yyyy");
+        List<Object[]> sortedData = Arrays.stream(data)
+                .sorted((a, b) -> {
+                    try {
+                        Date dateA = dateFormat.parse(String.valueOf(a[3]));
+                        Date dateB = dateFormat.parse(String.valueOf(b[3]));
+                        return dateA.compareTo(dateB);
+                    } catch (ParseException e) {
+                        return 0; // Treat invalid dates as equal
+                    }
+                })
+                .collect(Collectors.toList());
 
+        return new DefaultTableModel(sortedData.toArray(new Object[0][]), columnNames);
+    }
+    private DefaultTableModel sortDataByBalance() {
+        List<Object[]> sortedData = Arrays.stream(data)
+                .sorted((a, b) -> {
+                    try {
+                        double balance1 = NumberFormat.getCurrencyInstance(Locale.US)
+                                .parse(String.valueOf(a[4])).doubleValue();
+                        double balance2 = NumberFormat.getCurrencyInstance(Locale.US)
+                                .parse(String.valueOf(b[4])).doubleValue();
+                        return Double.compare(balance1, balance2);
+                    } catch (ParseException e) {
+                        e.printStackTrace();
+                        return 0; //balances as equal
+                    }
+                })
+                .collect(Collectors.toList());
+
+        return new DefaultTableModel(sortedData.toArray(new Object[0][]), columnNames);
+    }
     private void filterTable(String query) {
         String lowerCaseQuery = query.toLowerCase();
         Object[][] filteredData = Arrays.stream(data)
-                .filter(row -> (String.valueOf(row[1])).toLowerCase().contains(lowerCaseQuery))
+                .filter(row -> String.valueOf(row[1]).toLowerCase().contains(lowerCaseQuery))
                 .toArray(Object[][]::new);
+
         table.setModel(new DefaultTableModel(filteredData, columnNames));
     }
-
-    public void refreshList(){
-        data = mySQLManager.getUserTable().getAccountList();
+    public void refreshList() {
+        setupData();
         table.setModel(new DefaultTableModel(data, columnNames));
-
     }
+    private void setupData() {
+        if (!mySQLManager.isConnected()) return;
 
+        List<User> users = mySQLManager.getUserTable().getAccountList();
+        NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.US);
+
+        data = users.stream()
+                .map(user -> new Object[]{
+                        user.getId(),
+                        user.getName(),
+                        user.getUserRole().toString(),
+                        user.getAccountCreationDate(),
+                        currencyFormat.format(user.getBalance())
+                })
+                .toArray(Object[][]::new);
+    }
 }

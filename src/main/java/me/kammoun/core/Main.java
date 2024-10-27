@@ -14,7 +14,7 @@ public class Main {
             @Override
             public void run() {
                 MySQLManager mySQLManager = new MySQLManager();
-                new DashBoardPageAdmin(mySQLManager).setVisible(true);
+                new LoginPage(mySQLManager).setVisible(true);
             }
         });
     }
