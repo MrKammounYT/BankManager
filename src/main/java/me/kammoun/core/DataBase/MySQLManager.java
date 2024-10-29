@@ -7,6 +7,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MySQLManager {
 
@@ -16,11 +18,13 @@ public class MySQLManager {
     private final String password = "";
 
     private UserTable userTable;
+    private UserTransactionsTable userTransactionsTable;
 
     public MySQLManager() {
         setupDataSource();
         if (isConnected()) {
             userTable = new UserTable(this);
+            userTransactionsTable = new UserTransactionsTable(this);
             System.out.println("Database connected and UserTable initialized.");
         } else {
             System.out.println("Failed to connect to the database.");
@@ -93,5 +97,9 @@ public class MySQLManager {
 
     public UserTable getUserTable() {
         return userTable;
+    }
+
+    public UserTransactionsTable getUserTransactionsTable() {
+        return userTransactionsTable;
     }
 }

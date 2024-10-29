@@ -1,9 +1,8 @@
 package me.kammoun.core.DataBase;
 
 import me.kammoun.core.Enums.Roles;
-import me.kammoun.core.utils.User;
+import me.kammoun.core.utils.Holder.User;
 
-import java.awt.*;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
@@ -21,12 +20,12 @@ public class UserTable {
     public UserTable(MySQLManager mySQLManager){
         this.mySQLManager = mySQLManager;
         CreateUserTable();
-        addUser("kammoun",Roles.ADMIN,"admin",100);
+        addUser("kammoun",Roles.ADMIN,"admin",1000);
     }
 
     protected void CreateUserTable(){
             String createTableQuery = "CREATE TABLE IF NOT EXISTS Users (id INT AUTO_INCREMENT PRIMARY KEY,UserName VARCHAR(255)" +
-                    ",UserRole VARCHAR(100),creationDate date,password varchar(255),balance int)";
+                    ",UserRole VARCHAR(100),creationDate date,password varchar(255),balance int NOT NULL)";
         try {
             mySQLManager.executeUpdate(createTableQuery);
         } catch (SQLException e) {
@@ -63,6 +62,7 @@ public class UserTable {
             throw new RuntimeException("Error hashing password", e);
         }
     }
+
     public ArrayList<User> getAccountList() {
         ArrayList<User> userList = new ArrayList<>();
         try (Connection connection = mySQLManager.getConnection();
@@ -111,13 +111,91 @@ public class UserTable {
                     int id = rs.getInt("id");
                     String user = rs.getString("UserName");
                     String password = rs.getString("password");
-                    return new User(id,user, password);
+                    Roles userRole = Roles.valueOf(rs.getString("UserRole").toUpperCase());
+
+                    return new User(id,user, password,userRole);
                 }
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return null;  // user is not found or an error occurs
+    }
+
+    public User getUserByUsername(String username) {
+        String query = "SELECT * FROM users WHERE UserName = ?";  // prevent SQL injection
+        try (PreparedStatement stmt = mySQLManager.getConnection().prepareStatement(query)) {
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    int id = rs.getInt("id");
+                    String user = rs.getString("UserName");
+                    String password = rs.getString("password");
+                    int balance = rs.getInt("balance");
+                    Date creationDate = rs.getDate("creationDate");
+                    Roles userRole = Roles.valueOf(rs.getString("UserRole").toUpperCase());
+                    return new User(id, user, password, balance, creationDate, userRole);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public int getBalance(String username){
+        int balance = 0;
+        String query = "SELECT balance FROM users WHERE UserName =?";
+        try (PreparedStatement stmt = mySQLManager.getConnection().prepareStatement(query)) {
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    balance = rs.getInt("balance");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return balance;
+    }
+
+    public void addBalance(String recipient, double amount) {
+        String query = "UPDATE users SET balance = balance + ? WHERE UserName = ?";
+        try (PreparedStatement stmt = mySQLManager.getConnection().prepareStatement(query)) {
+            stmt.setDouble(1, amount);
+            stmt.setString(2, recipient);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    private boolean userExists(String username) {
+        String query = "SELECT 1 FROM users WHERE UserName = ?";
+        try (PreparedStatement stmt = mySQLManager.getConnection().prepareStatement(query)) {
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+    public boolean isValidUser(String username) {
+        if(!userExists(username))return false;
+        String query = "SELECT UserRole FROM users WHERE UserName = ?";
+        try (PreparedStatement stmt = mySQLManager.getConnection().prepareStatement(query)) {
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    Roles role = Roles.valueOf(rs.getString("UserRole"));
+                    return role == Roles.USER;
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
 }

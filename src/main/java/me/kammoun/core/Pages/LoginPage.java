@@ -4,19 +4,18 @@ import javax.imageio.ImageIO;
 import javax.swing.*;
 
 import me.kammoun.Events.ForgetPasswordClickEvent;
-import me.kammoun.Events.LoginButtonClickEvent;
 import me.kammoun.core.DataBase.MySQLManager;
+import me.kammoun.core.Enums.Roles;
 import me.kammoun.core.JComponentsPlus.ClickableText;
 import me.kammoun.core.JComponentsPlus.CustomInputField;
 import me.kammoun.core.JComponentsPlus.CustomPasswordInputField;
 import me.kammoun.core.JComponentsPlus.RoundButton;
-import me.kammoun.core.utils.User;
+import me.kammoun.core.utils.Holder.User;
 
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
-import java.util.Objects;
 
 public class LoginPage extends JFrame {
 
@@ -38,6 +37,7 @@ public class LoginPage extends JFrame {
 	}
 	public LoginPage(MySQLManager mySQLManager) {
 		this.mySQLManager = mySQLManager;
+		setVisible(true);
         setIconImage(FrameIcon.getImage());
 		setTitle("Login Page");
 		setSize(1000, 600);
@@ -116,14 +116,21 @@ public class LoginPage extends JFrame {
 
 		if (user == null) {
 			outputLabel.setText("Invalid username.");
-		} else if (!user.getPassword().equals(mySQLManager.getUserTable().hashPassword(password))) {
-			outputLabel.setText("Incorrect password.");
-		} else {
-			outputLabel.setForeground(Color.GREEN);
-			outputLabel.setText("Login successful!");
-			new DashBoardPageAdmin(mySQLManager).setVisible(true);
-			dispose(); // Close the login window
+			return;
 		}
+		if (!user.getPassword().equals(mySQLManager.getUserTable().hashPassword(password))) {
+			outputLabel.setText("Incorrect password.");
+			return;
+		}
+		outputLabel.setForeground(Color.GREEN);
+		outputLabel.setText("Login successful!");
+		if(user.getUserRole().equals(Roles.ADMIN) || user.getUserRole().equals(Roles.ADMIN)){
+			new DashBoardPageAdmin(mySQLManager).setVisible(true);
+		}else{
+			new DashBoardPageUser(mySQLManager, mySQLManager.getUserTable().getUserByUsername(username)).setVisible(true);
+		}
+		dispose(); // Close the login window
+
 	}
     
 }
